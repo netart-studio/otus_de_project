@@ -48,10 +48,10 @@
    - Хранит сырые данные, Stage Layer
 
 4. **ETL Airflow**
-   - Перекладывает инерементно данные из Stage в Data Mart
+   - Перекладывает инкрементно данные из Stage в Data Mart
  
 5. **ClickHouse**
-   - Хранить витрину даных, Data Mart Layer
+   - Хранит витрину даных, Data Mart Layer
 
 6. **BI - Metabase / Streamlit**
    - Dashboard, отображает графики котировок и спреды крипто валют.
