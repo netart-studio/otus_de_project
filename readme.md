@@ -53,6 +53,6 @@
 5. **ClickHouse**
    - Хранить витрину даных, Data Mart Layer
 
-6. **BI, Metabase / Streamlit**
+6. **BI - Metabase / Streamlit**
    - Dashboard, отображает графики котировок и спреды крипто валют.
 
