@@ -8,7 +8,7 @@
 
 1. **Producer** - собирает данные о сделках с Binance через WebSocket
 2. **Kafka** - промежуточное хранилище для потоковых данных
-3. **S3 Minio** - хранилище сырых данных, Stage Layer
+3. **S3 Minio** - хранилище сырых данных в формате parquet, Stage Layer
 4. **Airflow / Dagster** - ETL, перекладывает данные из Stage в Data Mart
 5. **ClickHouse** - хранение витрин, Data Mart Layer
 6. **Metabase / Stremlit** - BI, веб-интерфейс для построения Dashboard
