@@ -22,7 +22,7 @@
         <mxCell id="XIXhQvEFovdF97oVQOTi-46" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="XIXhQvEFovdF97oVQOTi-2" target="XIXhQvEFovdF97oVQOTi-31">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <UserObject label="websocket" id="XIXhQvEFovdF97oVQOTi-2">
+        <UserObject label="Producer&lt;div&gt;websocket&lt;/div&gt;" id="XIXhQvEFovdF97oVQOTi-2">
           <mxCell style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
             <mxGeometry x="125" y="210" width="100" height="60" as="geometry" />
           </mxCell>
