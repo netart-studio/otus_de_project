@@ -42,7 +42,7 @@
         <mxCell id="XIXhQvEFovdF97oVQOTi-28" value="Stage Layer" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
           <mxGeometry x="480" y="430" width="60" height="30" as="geometry" />
         </mxCell>
-        <mxCell id="XIXhQvEFovdF97oVQOTi-30" value="Streem" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+        <mxCell id="XIXhQvEFovdF97oVQOTi-30" value="Stream" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
           <mxGeometry x="330" y="150" width="60" height="30" as="geometry" />
         </mxCell>
         <mxCell id="XIXhQvEFovdF97oVQOTi-31" value="Kafka" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
