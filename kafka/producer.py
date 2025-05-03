@@ -1,23 +1,55 @@
-from binance import AsyncClient, BinanceSocketManager
-from confluent_kafka import Producer
-import asyncio
 import json
+import logging
+import os
+import signal
+import threading
+import time
+from datetime import datetime
 
-# Kafka Config
-conf = {
-    'bootstrap.servers': 'kafka:29092',  # Docker service name
-}
-producer = Producer(conf)
+import websocket
+from confluent_kafka import Producer
+from dotenv import load_dotenv
 
-async def binance_to_kafka(symbol='BTCUSDT'):
-    client = await AsyncClient.create()
-    bm = BinanceSocketManager(client)
-    ts = bm.trade_socket(symbol)
-    
-    async with ts as tscm:
-        while True:
-            data = await tscm.recv()
-            # Форматируем данные для Kafka
+# Загрузка переменных окружения
+load_dotenv()
+
+# Настройка логирования
+log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+logging.basicConfig(
+    level=getattr(logging, log_level, logging.INFO),
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+
+# Конфигурация Kafka
+KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS")
+KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "binance_trades")
+KAFKA_POLL_INTERVAL = float(os.getenv("KAFKA_POLL_INTERVAL", "0"))
+
+if not KAFKA_BOOTSTRAP_SERVERS:
+    raise ValueError("Не задана переменная KAFKA_BOOTSTRAP_SERVERS в .env")
+
+# Пары валют
+SYMBOLS = os.getenv("SYMBOLS", "btcusdt").lower().split(",")
+SYMBOLS = [s.strip() for s in SYMBOLS]
+
+# Инициализация Kafka Producer
+producer = Producer({
+    'bootstrap.servers': KAFKA_BOOTSTRAP_SERVERS
+})
+
+# Callback для проверки успешной доставки
+def delivery_report(err, msg):
+    if err:
+        logging.error(f"Ошибка доставки сообщения в Kafka: {err}")
+    else:
+        logging.debug(f"Сообщение доставлено в {msg.topic()} [{msg.partition()}]")
+
+# Функция обработки сообщений
+def on_message(ws, message):
+    try:
+        data = json.loads(message)
+        # Проверяем, что это сделка
+        if 'e' in data and data['e'] == 'trade':
             message = {
                 'symbol': data['s'],
                 'price': float(data['p']),
@@ -26,12 +58,59 @@ async def binance_to_kafka(symbol='BTCUSDT'):
             }
             # Отправка в Kafka
             producer.produce(
-                topic='binance_trades',
-                value=json.dumps(message).encode('utf-8')
+                KAFKA_TOPIC,
+                value=json.dumps(message).encode('utf-8'),
+                callback=delivery_report
             )
-            producer.flush()
-            print(f"Sent to Kafka: {message}")
+            producer.poll(KAFKA_POLL_INTERVAL)
+            logging.info(f"Отправлено в Kafka: {message}")
+    except Exception as e:
+        logging.error(f"Ошибка при обработке сообщения: {e}")
 
+def on_error(ws, error):
+    logging.error(f"WebSocket ошибка: {error}")
+
+def on_close(ws, close_status_code, close_msg):
+    logging.info("WebSocket соединение закрыто. Перезапуск через 5 сек...")
+    time.sleep(5)
+    start_websocket()
+
+def on_open(ws):
+    logging.info("WebSocket соединение открыто")
+    # Подписываемся на потоки для нескольких пар
+    subscribe_message = {
+        "method": "SUBSCRIBE",
+        "params": [f"{symbol}@trade" for symbol in SYMBOLS],
+        "id": 1
+    }
+    ws.send(json.dumps(subscribe_message))
+    logging.info(f"Подписаны на потоки: {[f'{s}@trade' for s in SYMBOLS]}")
+
+# Функция запуска WebSocket
+def start_websocket():
+    ws_url = "wss://stream.binance.com:9443/ws"
+    ws = websocket.WebSocketApp(
+        ws_url,
+        on_message=on_message,
+        on_error=on_error,
+        on_close=on_close
+    )
+    ws.on_open = on_open
+    ws.run_forever()
+
+# Обработчик сигналов завершения
+def signal_handler(sig, frame):
+    logging.info("Получен сигнал завершения. Очистка ресурсов...")
+    producer.flush(timeout=5)
+    logging.info("Ресурсы освобождены. Выход.")
+    exit(0)
+
+# Основная точка входа
 if __name__ == "__main__":
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(binance_to_kafka())
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+
+    logging.info("Запуск WebSocket клиента для Binance...")
+    websocket_thread = threading.Thread(target=start_websocket)
+    websocket_thread.start()
+    websocket_thread.join()
