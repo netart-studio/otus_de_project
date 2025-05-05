@@ -1,0 +1,7 @@
+websocket-client
+clickhouse-driver
+boto3
+pandas
+pyarrow
+psycopg2-binary
+confluent-kafka

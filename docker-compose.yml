@@ -21,7 +21,7 @@ services:
       timeout: 5s
       retries: 3
     networks:
-      - app-network
+      - dwh-network
 
   kafka:
     image: confluentinc/cp-kafka:7.4.0
@@ -35,7 +35,7 @@ services:
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_LISTENERS: INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092
+      KAFKA_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://0.0.0.0:9092
       KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
@@ -52,14 +52,13 @@ services:
       timeout: 5s
       retries: 3
     networks:
-      - app-network
+      - dwh-network
 
   # Producer
   binance-producer:
     build:
       context: .
       dockerfile: Dockerfile.producer
-
     container_name: producer
     env_file:
       - ./kafka/.env
@@ -75,8 +74,34 @@ services:
         limits:
           memory: 512M
     networks:
-      - app-network
+      - dwh-network
 
+  # Consumer
+  binance-consumer:
+    build:
+      context: .
+      dockerfile: Dockerfile.consumer
+    container_name: consumer
+    env_file:
+      - ./kafka/.env
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - CLICKHOUSE_HOST=clickhouse
+      - CLICKHOUSE_PORT=9000
+      - CLICKHOUSE_USER=default
+      - CLICKHOUSE_PASSWORD=secret
+      - CLICKHOUSE_DB=crypto
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    networks:
+      - dwh-network
+
+  
   clickhouse:
     image: yandex/clickhouse-server:latest
     container_name: clickhouse
@@ -87,10 +112,12 @@ services:
       CLICKHOUSE_DB: crypto
       CLICKHOUSE_USER: default
       CLICKHOUSE_PASSWORD: secret
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
     volumes:
       - clickhouse_data:/var/lib/clickhouse
+      - ./clickhouse/config.xml:/etc/clickhouse-server/config.d/s3.xml
     networks:
-      - app-network
+      - dwh-network
 
   minio:
     image: minio/minio:latest
@@ -105,30 +132,31 @@ services:
     volumes:
       - minio_data:/data
     networks:
-      - app-network
+      - dwh-network
 
   airflow:
     build:
       context: .
-      dockerfile: Dockerfile.airflow
+      dockerfile: ./airflow/Dockerfile
     container_name: airflow
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
       AIRFLOW__CORE__DAGS_FOLDER: /usr/local/airflow/dags
-      AIRFLOW__SCHEDULER__DAG_DIR_LIST_INTERVAL: 5
-      
-
+      AIRFLOW__WEBSERVER__BASE_URL: http://localhost:8080
+      AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
+      AIRFLOW__WEBSERVER__RBAC: "true"
     volumes:
-      - ./logs:/usr/local/airflow/logs
-      - ./dags:/usr/local/airflow/dags
+      - ./airflow/logs:/usr/local/airflow/logs
+      - ./airflow/dags:/usr/local/airflow/dags
     depends_on:
       - postgres
+      - clickhouse
     ports:
       - "8080:8080"
     networks:
-      - app-network
+      - dwh-network
     command: >
       bash -c "
       airflow db migrate &&
@@ -140,7 +168,8 @@ services:
           --lastname User \
           --role Admin \
           --email admin@example.com &&
-      airflow standalone
+      airflow webserver &
+      airflow scheduler
       "
 
   postgres:
@@ -156,7 +185,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./init-metabase.sql:/docker-entrypoint-initdb.d/init-metabase.sql
     networks:
-      - app-network
+      - dwh-network
 
   metabase:
     image: metabase/metabase:latest
@@ -169,30 +198,22 @@ services:
       MB_DB_PORT: 5432
       MB_DB_USER: metabase
       MB_DB_PASS: metabase
-      MB_DB_HOST: postgres
-    depends_on:
-      - postgres
     networks:
-      - app-network
+      - dwh-network
 
-  app:
+  dashboard:
     build:
-      context: .
-      dockerfile: Dockerfile.app
-    container_name: app
+      context: ./dashboard
+      dockerfile: Dockerfile
+    container_name: dashboard
+    ports:
+      - "8502:8501"
+    env_file:
+      - ./dashboard/.env
     depends_on:
-      - kafka
       - clickhouse
-      - minio
-    environment:
-      CLICKHOUSE_HOST: clickhouse
-      S3_ENDPOINT: http://minio:9000
-      S3_ACCESS_KEY: minioadmin
-      S3_SECRET_KEY: minioadmin
-    volumes:
-      - ./app:/app
     networks:
-      - app-network
+      - dwh-network
 
 volumes:
   clickhouse_data:
@@ -200,5 +221,5 @@ volumes:
   postgres_data:
 
 networks:
-  app-network:
+  dwh-network:
     driver: bridge

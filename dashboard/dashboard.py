@@ -46,11 +46,11 @@ def load_data(period):
     query = f"""
     WITH minute_prices AS (
         SELECT
-            toStartOfMinute(timestamp) AS minute,
+            toStartOfMinute(trade_time) AS minute,
             symbol,
             avg(price) AS price
-        FROM crypto_prices
-        WHERE timestamp >= now() - INTERVAL {time_interval}
+        FROM crypto_trades
+        WHERE trade_time >= now() - INTERVAL {time_interval}
         GROUP BY minute, symbol
     ),
     btc_data AS (

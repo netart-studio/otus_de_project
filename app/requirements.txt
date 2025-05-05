@@ -1,5 +1,0 @@
-confluent-kafka
-pyarrow
-boto3
-pandas
-python-dotenv

@@ -1,0 +1,10 @@
+# Базовый образ PostgreSQL
+FROM postgres:13
+
+# Копируем скрипт инициализации в контейнер
+COPY init-metabase.sql /docker-entrypoint-initdb.d/
+
+# Устанавливаем переменные окружения
+ENV POSTGRES_USER=airflow
+ENV POSTGRES_PASSWORD=airflow
+ENV POSTGRES_DB=airflow
