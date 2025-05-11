@@ -1,203 +1,208 @@
-import streamlit as st
+import dash
+from dash import dcc, html
+from dash.dependencies import Input, Output
+import plotly.graph_objs as go
+from datetime import datetime, timedelta
 import pandas as pd
 from clickhouse_driver import Client
-import plotly.express as px
-import time
-from datetime import datetime, timedelta
 import os
 from dotenv import load_dotenv
+import logging
 
-# Должен быть ПЕРВЫМ вызовом Streamlit в скрипте
-st.set_page_config(layout="wide")
+# Настройка логирования
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
 
-# Затем загружаем остальные настройки
+# Загрузка переменных окружения
 load_dotenv()
 
-# Настройки подключения к ClickHouse из .env
+# Настройки ClickHouse
 CLICKHOUSE_HOST = os.getenv('CLICKHOUSE_HOST', 'localhost')
-CLICKHOUSE_PORT = int(os.getenv('CLICKHOUSE_PORT', 9000))
+CLICKHOUSE_PORT = int(os.getenv('CLICKHOUSE_PORT', '9000'))
 CLICKHOUSE_USER = os.getenv('CLICKHOUSE_USER', 'default')
-CLICKHOUSE_PASSWORD = os.getenv('CLICKHOUSE_PASSWORD', 'secret')
+CLICKHOUSE_PASSWORD = os.getenv('CLICKHOUSE_PASSWORD', '')
 CLICKHOUSE_DB = os.getenv('CLICKHOUSE_DB', 'crypto')
-REFRESH_INTERVAL = int(os.getenv('REFRESH_INTERVAL', 60))
 
-def get_clickhouse_client():
-    return Client(
-        host=CLICKHOUSE_HOST,
-        port=CLICKHOUSE_PORT,
-        user=CLICKHOUSE_USER,
-        password=CLICKHOUSE_PASSWORD,
-        database=CLICKHOUSE_DB
-    )
+# Инициализация ClickHouse клиента
+clickhouse_client = Client(
+    host=CLICKHOUSE_HOST,
+    port=CLICKHOUSE_PORT,
+    user=CLICKHOUSE_USER,
+    password=CLICKHOUSE_PASSWORD,
+    database=CLICKHOUSE_DB
+)
 
-def get_time_filter_interval(period):
-    """Возвращает интервал времени в зависимости от выбранного периода"""
-    intervals = {
-        '1 час': '1 HOUR',
-        '1 день': '24 HOUR',
-        '1 неделя': '168 HOUR'  # 7 дней * 24 часа
-    }
-    return intervals.get(period, '24 HOUR')
+# Инициализация Dash приложения
+app = dash.Dash(__name__)
 
-@st.cache_data(ttl=REFRESH_INTERVAL)
-def load_data(period):
-    time_interval = get_time_filter_interval(period)
-    client = get_clickhouse_client()
-    query = f"""
-    WITH minute_prices AS (
-        SELECT
-            toStartOfMinute(trade_time) AS minute,
-            symbol,
-            avg(price) AS price
-        FROM crypto_trades
-        WHERE trade_time >= now() - INTERVAL {time_interval}
-        GROUP BY minute, symbol
-    ),
-    btc_data AS (
-        SELECT 
-            minute, 
-            price AS btc_price,
-            avg(price) OVER (ORDER BY minute ROWS BETWEEN 59 PRECEDING AND CURRENT ROW) AS btc_ma
-        FROM minute_prices 
-        WHERE symbol = 'BTCUSDT'
-    ),
-    eth_data AS (
-        SELECT 
-            minute, 
-            price AS eth_price,
-            avg(price) OVER (ORDER BY minute ROWS BETWEEN 59 PRECEDING AND CURRENT ROW) AS eth_ma
-        FROM minute_prices 
-        WHERE symbol = 'ETHUSDT'
-    ),
-    xrp_data AS (
-        SELECT 
-            minute, 
-            price AS xrp_price,
-            avg(price) OVER (ORDER BY minute ROWS BETWEEN 59 PRECEDING AND CURRENT ROW) AS xrp_ma
-        FROM minute_prices 
-        WHERE symbol = 'XRPUSDT'
-    )
-    SELECT
-        b.minute,
-        b.btc_price,
-        b.btc_ma,
-        e.eth_price,
-        e.eth_ma,
-        x.xrp_price,
-        x.xrp_ma,
-        b.btc_price - e.eth_price AS btc_eth_spread,
-        b.btc_price - x.xrp_price AS btc_xrp_spread
-    FROM btc_data b
-    LEFT JOIN eth_data e ON b.minute = e.minute
-    LEFT JOIN xrp_data x ON b.minute = x.minute
-    WHERE e.eth_price IS NOT NULL AND x.xrp_price IS NOT NULL
-    ORDER BY b.minute
-    """
+# Функция для получения данных из ClickHouse
+def get_data(symbol, time_range):
     try:
-        result = client.execute(query)
-        columns = ['minute', 'btc_price', 'btc_ma', 'eth_price', 'eth_ma', 
-                 'xrp_price', 'xrp_ma', 'btc_eth_spread', 'btc_xrp_spread']
-        df = pd.DataFrame(result, columns=columns)
+        # Вычисляем временной диапазон
+        query = f"""
+        SELECT 
+            timestamp,
+            price,
+            bid_price,
+            ask_price,
+            spread
+        FROM crypto_prices
+        WHERE symbol = '{symbol}'
+        ORDER BY timestamp DESC
+        LIMIT {time_range * 12}  # Примерно 5 точек в минуту
+        """
+        
+        logging.info(f"Выполняем запрос: {query}")
+        result = clickhouse_client.execute(query)
+        
+        if not result:
+            logging.warning(f"Нет данных для {symbol}")
+            return pd.DataFrame(columns=['timestamp', 'price', 'bid_price', 'ask_price', 'spread'])
+            
+        df = pd.DataFrame(result, columns=['timestamp', 'price', 'bid_price', 'ask_price', 'spread'])
+        logging.info(f"Получено {len(df)} записей для {symbol}")
+        logging.info(f"Диапазон данных: от {df['timestamp'].min()} до {df['timestamp'].max()}")
+        logging.info(f"Пример данных:\n{df.head().to_string()}")
+        
+        # Сортируем по времени по возрастанию для графиков
+        df = df.sort_values('timestamp')
+        
         return df
     except Exception as e:
-        st.error(f"Ошибка при загрузке данных: {e}")
-        return pd.DataFrame()
+        logging.error(f"Ошибка при получении данных: {e}")
+        import traceback
+        logging.error(f"Traceback: {traceback.format_exc()}")
+        return pd.DataFrame(columns=['timestamp', 'price', 'bid_price', 'ask_price', 'spread'])
 
-def create_price_chart(data, price_col, ma_col, title):
-    fig = px.line(data, x='minute', y=[price_col, ma_col],
-                 title=title,
-                 labels={'value': 'Price', 'minute': 'Time'})
-    fig.update_traces(line=dict(width=2), selector={'name': price_col})
-    fig.update_traces(line=dict(width=1.5, dash='dot'), selector={'name': ma_col})
-    fig.update_layout(
-        legend_title_text='Metrics',
-        margin=dict(l=20, r=20, t=40, b=20),
-        height=300
-    )
-    return fig
-
-def create_spread_chart(data, spread_col, title):
-    fig = px.line(data, x='minute', y=spread_col,
-                 title=title,
-                 labels={'value': 'Spread', 'minute': 'Time'})
-    fig.update_traces(line=dict(width=2))
-    fig.update_layout(
-        margin=dict(l=20, r=20, t=40, b=20),
-        height=300
-    )
-    return fig
-
-def main():
-    st.title("Криптовалютный дашборд")
+# Создание layout
+app.layout = html.Div([
+    html.H1('Криптовалютные котировки в реальном времени'),
     
-    # Добавляем селектор периода времени
-    time_period = st.radio(
-        "Период отображения данных:",
-        options=['1 час', '1 день', '1 неделя'],
-        horizontal=True,
-        index=1  # По умолчанию выбран 1 день
+    html.Div([
+        html.Label('Выберите криптовалюту:'),
+        dcc.Dropdown(
+            id='symbol-dropdown',
+            options=[
+                {'label': 'BTC/USDT', 'value': 'btcusdt'},
+                {'label': 'ETH/USDT', 'value': 'ethusdt'},
+                {'label': 'XRP/USDT', 'value': 'xrpusdt'}
+            ],
+            value='btcusdt'
+        ),
+        
+        html.Label('Временной интервал (минуты):'),
+        dcc.Dropdown(
+            id='time-range-dropdown',
+            options=[
+                {'label': '5 минут', 'value': 5},
+                {'label': '15 минут', 'value': 15},
+                {'label': '30 минут', 'value': 30},
+                {'label': '1 час', 'value': 60}
+            ],
+            value=15
+        )
+    ], style={'width': '30%', 'margin': '20px'}),
+    
+    dcc.Graph(id='price-chart'),
+    dcc.Graph(id='spread-chart'),
+    
+    dcc.Interval(
+        id='interval-component',
+        interval=5*1000,  # обновление каждые 5 секунд
+        n_intervals=0
     )
-    
-    if st.button("Обновить данные"):
-        st.cache_data.clear()
-    
-    df = load_data(time_period)
+])
 
-    if not df.empty:
-        st.write(f"Последнее обновление: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        st.write(f"Отображаемый период: {time_period}")
+# Callback для обновления графиков
+@app.callback(
+    [Output('price-chart', 'figure'),
+     Output('spread-chart', 'figure')],
+    [Input('symbol-dropdown', 'value'),
+     Input('time-range-dropdown', 'value'),
+     Input('interval-component', 'n_intervals')]
+)
+def update_graphs(symbol, time_range, n):
+    try:
+        logging.info(f"Обновление графиков для {symbol}, интервал {time_range} минут")
+        df = get_data(symbol, time_range)
         
-        # Графики цен
-        st.subheader(f"Цены криптовалют со скользящим средним (1 час) - период: {time_period}")
-        price_cols = st.columns(3)
+        if df.empty:
+            logging.warning("Получен пустой DataFrame")
+            # Возвращаем пустые графики с сообщением об отсутствии данных
+            empty_fig = {
+                'data': [],
+                'layout': go.Layout(
+                    title=f'Нет данных для {symbol.upper()}',
+                    xaxis={'title': 'Время'},
+                    yaxis={'title': 'Цена (USDT)'}
+                )
+            }
+            return empty_fig, empty_fig
         
-        with price_cols[0]:
-            fig_btc = create_price_chart(df, 'btc_price', 'btc_ma', 'BTC/USDT')
-            st.plotly_chart(fig_btc, use_container_width=True)
+        logging.info(f"Создаем графики для {len(df)} точек данных")
+        # График цен
+        price_fig = {
+            'data': [
+                go.Scatter(
+                    x=df['timestamp'],
+                    y=df['price'],
+                    name='Цена',
+                    line=dict(color='blue')
+                ),
+                go.Scatter(
+                    x=df['timestamp'],
+                    y=df['bid_price'],
+                    name='Bid',
+                    line=dict(color='green')
+                ),
+                go.Scatter(
+                    x=df['timestamp'],
+                    y=df['ask_price'],
+                    name='Ask',
+                    line=dict(color='red')
+                )
+            ],
+            'layout': go.Layout(
+                title=f'Котировки {symbol.upper()}',
+                xaxis={'title': 'Время'},
+                yaxis={'title': 'Цена (USDT)'},
+                hovermode='x unified'
+            )
+        }
         
-        with price_cols[1]:
-            fig_eth = create_price_chart(df, 'eth_price', 'eth_ma', 'ETH/USDT')
-            st.plotly_chart(fig_eth, use_container_width=True)
+        # График спреда
+        spread_fig = {
+            'data': [
+                go.Scatter(
+                    x=df['timestamp'],
+                    y=df['spread'],
+                    name='Спред',
+                    line=dict(color='purple')
+                )
+            ],
+            'layout': go.Layout(
+                title=f'Спред {symbol.upper()}',
+                xaxis={'title': 'Время'},
+                yaxis={'title': 'Спред (USDT)'},
+                hovermode='x unified'
+            )
+        }
         
-        with price_cols[2]:
-            fig_xrp = create_price_chart(df, 'xrp_price', 'xrp_ma', 'XRP/USDT')
-            st.plotly_chart(fig_xrp, use_container_width=True)
+        return price_fig, spread_fig
+    except Exception as e:
+        logging.error(f"Ошибка при обновлении графиков: {e}")
+        # Возвращаем пустые графики с сообщением об ошибке
+        error_fig = {
+            'data': [],
+            'layout': go.Layout(
+                title='Ошибка при обновлении данных',
+                xaxis={'title': 'Время'},
+                yaxis={'title': 'Цена (USDT)'}
+            )
+        }
+        return error_fig, error_fig
 
-        # Графики спредов
-        st.subheader(f"Спреды между криптовалютами - период: {time_period}")
-        spread_cols = st.columns(2)
-        
-        with spread_cols[0]:
-            fig_spread1 = create_spread_chart(df, 'btc_eth_spread', 'BTC-ETH Spread')
-            st.plotly_chart(fig_spread1, use_container_width=True)
-        
-        with spread_cols[1]:
-            fig_spread2 = create_spread_chart(df, 'btc_xrp_spread', 'BTC-XRP Spread')
-            st.plotly_chart(fig_spread2, use_container_width=True)
-
-        # Текущие значения
-        st.subheader("Текущие значения")
-        last_row = df.iloc[-1]
-        
-        metric_cols = st.columns(3)
-        metric_cols[0].metric("BTC/USDT", 
-                             f"{last_row['btc_price']:.2f}", 
-                             f"MA: {last_row['btc_ma']:.2f}")
-        metric_cols[1].metric("ETH/USDT", 
-                             f"{last_row['eth_price']:.2f}", 
-                             f"MA: {last_row['eth_ma']:.2f}")
-        metric_cols[2].metric("XRP/USDT", 
-                             f"{last_row['xrp_price']:.2f}", 
-                             f"MA: {last_row['xrp_ma']:.2f}")
-        
-        spread_metric_cols = st.columns(2)
-        spread_metric_cols[0].metric("BTC-ETH Spread", f"{last_row['btc_eth_spread']:.2f}")
-        spread_metric_cols[1].metric("BTC-XRP Spread", f"{last_row['btc_xrp_spread']:.2f}")
-    else:
-        st.warning("Нет данных для отображения. Проверьте подключение к ClickHouse.")
-
-if __name__ == "__main__":
-    while True:
-        main()
-        time.sleep(REFRESH_INTERVAL)
-        st.rerun()
+if __name__ == '__main__':
+    app.run_server(host='0.0.0.0', port=8050, debug=True)
