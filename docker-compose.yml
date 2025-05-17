@@ -78,7 +78,6 @@ services:
       kafka:
         condition: service_healthy
 
-
     restart: on-failure:5  # перезапуск при падении
     healthcheck:
       test: ["CMD", "sh", "-c", "echo 'Consumer health check'; exit 0"]
@@ -123,11 +122,6 @@ services:
     command: server /data --console-address ":9001" --address ":9000"
     volumes:
       - minio_data:/data
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/ready", "||", "exit", "1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
     networks:
       - crypto-network

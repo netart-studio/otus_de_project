@@ -4,7 +4,7 @@
             symbol,
             avg(price) AS price
         FROM crypto_trades
-        WHERE trade_time >= now() - INTERVAL {time_interval} AND price is not NULL
+        WHERE trade_time >= now() - INTERVAL {time_interval}
         GROUP BY minute, symbol
     ),
     btc_data AS (
