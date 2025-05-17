@@ -9,9 +9,8 @@
 1. **Producer** - собирает данные о сделках с Binance через WebSocket
 2. **Kafka** - промежуточное хранилище для потоковых данных
 3. **S3 Minio** - хранилище сырых данных в формате parquet, Stage Layer
-4. **Airflow / Dagster** - ETL, перекладывает данные из Stage в Data Mart
-5. **ClickHouse** - хранение витрин, Data Mart Layer
-6. **Metabase / Stremlit** - BI, веб-интерфейс для построения Dashboard
+4. **ClickHouse** - хранение витрин, Data Mart Layer
+5. **Metabase / Stremlit** - BI, веб-интерфейс для построения Dashboard
 
 ## Требования
 
@@ -24,7 +23,6 @@
 - Python 3.12
 - Kafka 7.4.0
 - Minio 8.5.1+
-- Airflow 2.10.3+
 - ClickHouse 23.9.5+
 
 ## Архитектура
@@ -46,12 +44,78 @@
 3. **S3 Minio**
    - Хранит сырые данные, Stage Layer
 
-4. **ETL Airflow**
-   - Перекладывает инкрементно данные из Stage в Data Mart
  
-5. **ClickHouse**
+4. **ClickHouse**
    - Хранит витрину даных, Data Mart Layer
 
-6. **BI - Metabase / Streamlit**
+5. **BI - Metabase / Streamlit**
    - Dashboard, отображает графики котировок и спреды крипто валют.
+
+## Запуск проекта
+
+1. **Клонирование репозитория**
+   ```bash
+   git clone <repository-url>
+   cd otus_de_project
+   ```
+
+2. **Запуск всех сервисов**
+   ```bash
+   docker-compose up -d
+   ```
+
+3. **Проверка статуса сервисов**
+   ```bash
+   docker-compose ps
+   ```
+
+## Доступ к сервисам
+
+### Веб-интерфейсы
+
+1. **MinIO (Object Storage)**
+   - API Endpoint: http://localhost:9003
+   - Web Console: http://localhost:9002
+   - Credentials:
+     - Username: minioadmin
+     - Password: minioadmin
+
+2. **ClickHouse**
+   - HTTP Interface: http://localhost:8123
+   - Native Interface: localhost:9001
+   - Credentials:
+     - Username: default
+     - Password: secret
+     - Database: crypto
+
+3. **Metabase (BI Dashboard)**
+   - URL: http://localhost:3000
+   - При первом запуске потребуется настройка:
+     - Database Type: PostgreSQL
+     - Host: postgres
+     - Port: 5432
+     - Database name: metabase
+     - Username: metabase
+     - Password: metabase
+
+4. **Streamlit Dashboard**
+   - URL: http://localhost:8502
+
+### Kafka
+
+- Bootstrap Servers:
+  - Внутри Docker: kafka:29092
+  - Снаружи: localhost:9092
+- Zookeeper: localhost:2181
+
+## Остановка проекта
+
+```bash
+docker-compose down
+```
+
+Для полной очистки данных (включая volumes):
+```bash
+docker-compose down -v
+```
 
