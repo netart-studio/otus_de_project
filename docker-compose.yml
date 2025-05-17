@@ -1,0 +1,156 @@
+version: '3.8'
+
+services:
+
+  # Zookeeper
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.3.0
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    healthcheck:
+      test: echo ruok | nc localhost 2181 || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - crypto-network
+
+  # Kafka
+  kafka:
+    image: confluentinc/cp-kafka:7.3.0
+    container_name: kafka
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    env_file:
+      - .env
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    healthcheck:
+      test: [ "CMD", "kafka-broker-api-versions", "--bootstrap-server=localhost:9092" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - crypto-network
+
+  # Producer
+  binance-producer:
+    build:
+      context: ./producer
+      dockerfile: Dockerfile
+    container_name: binance-producer
+    env_file:
+      - .env
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    networks:
+      - crypto-network
+
+  # Consumer
+  consumer:
+    build:
+      context: ./consumer
+      dockerfile: Dockerfile
+    container_name: consumer
+    env_file:
+      - .env
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+
+    restart: on-failure:5  # перезапуск при падении
+    healthcheck:
+      test: ["CMD", "sh", "-c", "echo 'Consumer health check'; exit 0"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    networks:
+      - crypto-network
+
+  
+  clickhouse:
+    image: clickhouse/clickhouse-server:23.3
+    container_name: clickhouse
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    env_file:
+      - .env
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - ./clickhouse/config.xml:/etc/clickhouse-server/config.d/s3.xml
+      - ./clickhouse/users.d/users.xml:/etc/clickhouse-server/users.xml
+      - ./clickhouse/users.d/users.xml:/etc/clickhouse-server/users.d/users.xml
+      - ./init-scripts:/docker-entrypoint-initdb.d 
+    networks:
+      - crypto-network
+
+  minio:
+    image: minio/minio
+    container_name: minio
+    ports:
+      - "9003:9000"
+      - "9002:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001" --address ":9000"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/ready", "||", "exit", "1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+    networks:
+      - crypto-network
+
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    container_name: dashboard
+    ports:
+      - "8502:8501"
+    env_file:
+      - .env
+    depends_on:
+      - clickhouse
+    networks:
+      - crypto-network
+
+volumes:
+  clickhouse_data:
+  minio_data:
+  postgres_data:
+
+networks:
+  crypto-network:
+    driver: bridge
