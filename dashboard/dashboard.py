@@ -20,15 +20,44 @@ CLICKHOUSE_USER = os.getenv('CLICKHOUSE_USER', 'default')
 CLICKHOUSE_PASSWORD = os.getenv('CLICKHOUSE_PASSWORD', 'secret')
 CLICKHOUSE_DB = os.getenv('CLICKHOUSE_DB', 'crypto')
 REFRESH_INTERVAL = int(os.getenv('REFRESH_INTERVAL', 60))
+CLICKHOUSE_TABLE = os.getenv('CLICKHOUSE_TABLE', 'kafka_trades_mv')
+
+
+# Скрытие toolbar через CSS
+hide_toolbar = """
+<style>
+    .stApp header {
+        visibility: hidden;
+    }
+
+    .block-container{
+        padding-top: 0px;
+    }
+</style>
+"""
+
+st.markdown(hide_toolbar, unsafe_allow_html=True)
+
 
 def get_clickhouse_client():
     return Client(
         host=CLICKHOUSE_HOST,
+        #host='localhost',
         port=CLICKHOUSE_PORT,
         user=CLICKHOUSE_USER,
         password=CLICKHOUSE_PASSWORD,
         database=CLICKHOUSE_DB
     )
+
+def load_sql_query():
+    """Загружает SQL запрос из файла"""
+    try:
+        with open('query.sql', 'r') as file:
+            return file.read()
+    except Exception as e:
+        st.error(f"Ошибка при чтении SQL файла: {e}")
+        return None
+    
 
 def get_time_filter_interval(period):
     """Возвращает интервал времени в зависимости от выбранного периода"""
@@ -43,56 +72,19 @@ def get_time_filter_interval(period):
 def load_data(period):
     time_interval = get_time_filter_interval(period)
     client = get_clickhouse_client()
-    query = f"""
-    WITH minute_prices AS (
-        SELECT
-            toStartOfMinute(trade_time) AS minute,
-            symbol,
-            avg(price) AS price
-        FROM crypto_trades
-        WHERE trade_time >= now() - INTERVAL {time_interval}
-        GROUP BY minute, symbol
-    ),
-    btc_data AS (
-        SELECT 
-            minute, 
-            price AS btc_price,
-            avg(price) OVER (ORDER BY minute ROWS BETWEEN 59 PRECEDING AND CURRENT ROW) AS btc_ma
-        FROM minute_prices 
-        WHERE symbol = 'BTCUSDT'
-    ),
-    eth_data AS (
-        SELECT 
-            minute, 
-            price AS eth_price,
-            avg(price) OVER (ORDER BY minute ROWS BETWEEN 59 PRECEDING AND CURRENT ROW) AS eth_ma
-        FROM minute_prices 
-        WHERE symbol = 'ETHUSDT'
-    ),
-    xrp_data AS (
-        SELECT 
-            minute, 
-            price AS xrp_price,
-            avg(price) OVER (ORDER BY minute ROWS BETWEEN 59 PRECEDING AND CURRENT ROW) AS xrp_ma
-        FROM minute_prices 
-        WHERE symbol = 'XRPUSDT'
+
+    # Загружаем SQL запрос из файла
+    query_template = load_sql_query()
+    if query_template is None:
+        return pd.DataFrame()
+    
+    # Подставляем параметры в запрос
+    query = query_template.format(
+        table=CLICKHOUSE_TABLE,
+        time_interval=time_interval
     )
-    SELECT
-        b.minute,
-        b.btc_price,
-        b.btc_ma,
-        e.eth_price,
-        e.eth_ma,
-        x.xrp_price,
-        x.xrp_ma,
-        b.btc_price - e.eth_price AS btc_eth_spread,
-        b.btc_price - x.xrp_price AS btc_xrp_spread
-    FROM btc_data b
-    LEFT JOIN eth_data e ON b.minute = e.minute
-    LEFT JOIN xrp_data x ON b.minute = x.minute
-    WHERE e.eth_price IS NOT NULL AND x.xrp_price IS NOT NULL
-    ORDER BY b.minute
-    """
+
+
     try:
         result = client.execute(query)
         columns = ['minute', 'btc_price', 'btc_ma', 'eth_price', 'eth_ma', 
@@ -175,24 +167,26 @@ def main():
             fig_spread2 = create_spread_chart(df, 'btc_xrp_spread', 'BTC-XRP Spread')
             st.plotly_chart(fig_spread2, use_container_width=True)
 
+
         # Текущие значения
-        st.subheader("Текущие значения")
         last_row = df.iloc[-1]
         
-        metric_cols = st.columns(3)
-        metric_cols[0].metric("BTC/USDT", 
+      
+        price_cols[0].metric("BTC/USDT", 
                              f"{last_row['btc_price']:.2f}", 
                              f"MA: {last_row['btc_ma']:.2f}")
-        metric_cols[1].metric("ETH/USDT", 
+        price_cols[1].metric("ETH/USDT", 
                              f"{last_row['eth_price']:.2f}", 
                              f"MA: {last_row['eth_ma']:.2f}")
-        metric_cols[2].metric("XRP/USDT", 
+        price_cols[2].metric("XRP/USDT", 
                              f"{last_row['xrp_price']:.2f}", 
                              f"MA: {last_row['xrp_ma']:.2f}")
         
-        spread_metric_cols = st.columns(2)
-        spread_metric_cols[0].metric("BTC-ETH Spread", f"{last_row['btc_eth_spread']:.2f}")
-        spread_metric_cols[1].metric("BTC-XRP Spread", f"{last_row['btc_xrp_spread']:.2f}")
+      
+
+        spread_cols[0].metric("BTC-ETH Spread", f"{last_row['btc_eth_spread']:.2f}")
+        spread_cols[1].metric("BTC-XRP Spread", f"{last_row['btc_xrp_spread']:.2f}")
+
     else:
         st.warning("Нет данных для отображения. Проверьте подключение к ClickHouse.")
 

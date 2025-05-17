@@ -22,7 +22,7 @@ logging.basicConfig(
 
 # Конфигурация Kafka
 KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS")
-KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "crypto_data")
+KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "binance_trades")
 KAFKA_POLL_INTERVAL = float(os.getenv("KAFKA_POLL_INTERVAL", "0"))
 
 if not KAFKA_BOOTSTRAP_SERVERS:
