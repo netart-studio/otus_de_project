@@ -108,14 +108,6 @@
   - Снаружи: localhost:9092
 - Zookeeper: localhost:2181
 
-### PostgreSQL
-
-- Host: localhost
-- Port: 5432
-- Database: airflow
-- Username: airflow
-- Password: airflow
-
 ## Остановка проекта
 
 ```bash
