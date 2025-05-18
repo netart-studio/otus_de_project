@@ -122,9 +122,17 @@ docker-compose down -v
 [Скачать Презентацию](https://github.com/netart-studio/otus_de_project/raw/refs/heads/main/docs/presentation_project.pptx )
 
 
-## Видео демонстрация
+## 🎥 Видео демонстрация
+[Скачать видео демонстрацию](https://github.com/netart-studio/otus_de_project/raw/refs/heads/main/docs/de_project_demo.mp4" )
 
-<video width="640" height="360" controls>
-  <source src="https://github.com/netart-studio/otus_de_project/raw/refs/heads/main/docs/de_project_demo.mp4" type="video/mp4">
-  Ваш браузер не поддерживает тег video.
-</video>
+<details>
+  <summary>Посмотреть видео с Rutube</summary>
+  <br>
+  <iframe 
+    src="https://rutube.ru/video/private/55ce11a5964923c23b07ff2bd6c6a357/?p=TrLgH1KOx4PR7X97mXAlSg " 
+    width="640" 
+    height="360" 
+    frameborder="0" 
+    allowfullscreen>
+  </iframe>
+</details>
