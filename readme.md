@@ -127,16 +127,16 @@ docker-compose down -v
 
 <br>
 <details>
-  <summary>Посмотреть видео с Rutube</summary>
+  <summary>Посмотреть видео</summary>
   <br>
   <iframe 
-    src="https://rutube.ru/play/embed/55ce11a5964923c23b07ff2bd6c6a357/?p=TrLgH1KOx4PR7X97mXAlSg" 
+    src="https://rutube.ru/play/embed/55ce11a5964923c23b07ff2bd6c6a357/?p=TrLgH1KOx4PR7X97mXAlSg " 
     width="600" 
     height="360" 
     frameborder="0" 
-    allowfullscreen 
-    webkitallowfullscreen 
-    mozallowfullscreen 
+    allowfullscreen
+    webkitallowfullscreen
+    mozallowfullscreen
     allow="autoplay"
   ></iframe>
 </details>
