@@ -18,8 +18,8 @@ st.set_page_config(layout="wide")
 load_dotenv()
 
 # Настройки подключения к ClickHouse из .env
-#CLICKHOUSE_HOST = '130.193.44.73'
-CLICKHOUSE_HOST = os.getenv('CLICKHOUSE_HOST', 'localhost')
+CLICKHOUSE_HOST = '130.193.44.73'
+#CLICKHOUSE_HOST = os.getenv('CLICKHOUSE_HOST', 'localhost')
 
 CLICKHOUSE_PORT = int(os.getenv('CLICKHOUSE_PORT', 9000))
 CLICKHOUSE_USER = os.getenv('CLICKHOUSE_USER', 'default')
