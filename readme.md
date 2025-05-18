@@ -123,7 +123,7 @@ docker-compose down -v
 
 
 ## 🎥 Видео демонстрация
-[Скачать видео демонстрацию](https://github.com/netart-studio/otus_de_project/raw/refs/heads/main/docs/de_project_demo.mp4" )
+[Скачать видео демонстрацию](https://github.com/netart-studio/otus_de_project/raw/refs/heads/main/docs/de_project_demo.mp4 )
 
 <br>
 <details>
