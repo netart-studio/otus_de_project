@@ -10,7 +10,7 @@
 2. **Kafka** - промежуточное хранилище для потоковых данных
 3. **S3 Minio** - хранилище сырых данных в формате parquet, Stage Layer
 4. **ClickHouse** - хранение витрин, Data Mart Layer
-5. **Metabase / Stremlit** - BI, веб-интерфейс для построения Dashboard
+5. **Stremlit** - BI, веб-интерфейс для построения Dashboard
 
 ## Требования
 
@@ -76,17 +76,12 @@
 1. **MinIO (Object Storage)**
    - API Endpoint: http://localhost:9003
    - Web Console: http://localhost:9002
-   - Credentials:
-     - Username: minioadmin
-     - Password: minioadmin
+   - Username: minioadmin
+   - Password: minioadmin
 
 2. **ClickHouse**
    - HTTP Interface: http://localhost:8123
    - Native Interface: localhost:9001
-   - Credentials:
-     - Username: default
-     - Password: secret
-     - Database: crypto
 
 3**Streamlit Dashboard**
    - URL: http://localhost:8502
