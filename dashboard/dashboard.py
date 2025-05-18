@@ -7,6 +7,10 @@ from datetime import datetime, timedelta
 import os
 from dotenv import load_dotenv
 
+import logging
+logging.basicConfig(level=logging.INFO)
+
+
 # Должен быть ПЕРВЫМ вызовом Streamlit в скрипте
 st.set_page_config(layout="wide")
 
@@ -14,7 +18,9 @@ st.set_page_config(layout="wide")
 load_dotenv()
 
 # Настройки подключения к ClickHouse из .env
+#CLICKHOUSE_HOST = '130.193.44.73'
 CLICKHOUSE_HOST = os.getenv('CLICKHOUSE_HOST', 'localhost')
+
 CLICKHOUSE_PORT = int(os.getenv('CLICKHOUSE_PORT', 9000))
 CLICKHOUSE_USER = os.getenv('CLICKHOUSE_USER', 'default')
 CLICKHOUSE_PASSWORD = os.getenv('CLICKHOUSE_PASSWORD', 'secret')
@@ -83,6 +89,8 @@ def load_data(period):
         table=CLICKHOUSE_TABLE,
         time_interval=time_interval
     )
+
+    logging.info("SQL Query:\n%s", query)
 
 
     try:
