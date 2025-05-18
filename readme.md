@@ -55,7 +55,7 @@
 
 1. **Клонирование репозитория**
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/netart-studio/otus_de_project
    cd otus_de_project
    ```
 
@@ -88,17 +88,7 @@
      - Password: secret
      - Database: crypto
 
-3. **Metabase (BI Dashboard)**
-   - URL: http://localhost:3000
-   - При первом запуске потребуется настройка:
-     - Database Type: PostgreSQL
-     - Host: postgres
-     - Port: 5432
-     - Database name: metabase
-     - Username: metabase
-     - Password: metabase
-
-4. **Streamlit Dashboard**
+3**Streamlit Dashboard**
    - URL: http://localhost:8502
 
 ### Kafka
@@ -118,4 +108,23 @@ docker-compose down
 ```bash
 docker-compose down -v
 ```
+## Демонстрация проекта
+## BI, dashboard 
+![BI, Дашборд](docs/dashboard.png)
 
+## S3 minio
+![S3 minio](docs/minio.png)
+
+## ClickHouse
+![clickhouse](docs/clickhouse.png)
+
+## Презентация
+[Скачать Презентацию](https://github.com/netart-studio/otus_de_project/raw/refs/heads/main/docs/presentation_project.pptx )
+
+
+## Видео демонстрация
+
+<video width="640" height="360" controls>
+  <source src="https://github.com/netart-studio/otus_de_project/raw/refs/heads/main/docs/de_project_demo.mp4" type="video/mp4">
+  Ваш браузер не поддерживает тег video.
+</video>
