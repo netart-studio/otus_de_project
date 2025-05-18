@@ -125,4 +125,3 @@ docker-compose down -v
 ## 🎥 Видео демонстрация
 [Видео: Демонстрация проекта по курсу Otus DE](https://rutube.ru/video/55ce11a5964923c23b07ff2bd6c6a357/ )
 
-[Скачать видео демонстрацию](https://github.com/netart-studio/otus_de_project/raw/refs/heads/main/docs/de_project_demo.mp4 )
